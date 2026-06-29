@@ -1,0 +1,5 @@
+{
+    "client_id": "你的_CLIENT_ID",
+    "client_secret": "你的_CLIENT_SECRET",
+    "redirect_uri": "[http://127.0.0.1:6198/callback](http://127.0.0.1:6198/callback)"
+}
