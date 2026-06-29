@@ -8,61 +8,60 @@ from astrbot.api.event import filter
 class SpotifyController(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        
-        # 主动读取当前目录下的 config.json 文件
-        config = {}
-        config_path = os.path.join(os.path.dirname(__file__), "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        
-        # 1. 从用户自定义配置中读取 ID 和 Key
-        self.client_id = config.get("client_id", "")
-        self.client_secret = config.get("client_secret", "")
-        
-        # 2. 回调地址使用 127.0.0.1 规避 localhost 解析限制
-        self.redirect_uri = config.get("redirect_uri", "http://127.0.0.1:6198/callback")
-        
         self.sp = None
         self.auth_manager = None
-        self._init_spotify()
+        # 初始化时加载一次
+        self._load_config_and_init()
 
-    def _init_spotify(self):
+    def _load_config_and_init(self):
+        """核心逻辑：从 config.json 实时加载配置，并初始化客户端"""
+        config_path = os.path.join(os.path.dirname(__file__), "config.json")
+        config = {}
         
-        """初始化 Auth Manager，并尝试静默加载本地 Token"""
-        if not self.client_id or not self.client_secret:
+        # 兼容 WebUI 动态生成的 config.json
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            except Exception:
+                pass
+                
+        client_id = config.get("client_id", "")
+        client_secret = config.get("client_secret", "")
+        redirect_uri = config.get("redirect_uri", "http://127.0.0.1:6198/callback")
+        
+        if not client_id or not client_secret:
             return
             
-        # 包含播放控制、读取状态和修改资料库(收藏)的权限
         scope = "user-modify-playback-state user-read-playback-state user-library-modify"
         
         self.auth_manager = SpotifyOAuth(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            redirect_uri=self.redirect_uri,
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
             scope=scope,
             open_browser=False 
         )
         
-        # 尝试静默获取现有的缓存 Token
         token_info = self.auth_manager.validate_token(self.auth_manager.cache_handler.get_cached_token())
         if token_info:
-            # 如果本地有有效的缓存，直接初始化 Spotify 客户端
             self.sp = spotipy.Spotify(auth_manager=self.auth_manager)
         else:
-            # 如果没有，self.sp 保持为 None，等待用户手动触发授权指令
-            pass
+            self.sp = None
+
 
     # ================= 供人类用户使用的授权指令 =================
 
     @filter.command("spotify登录")
     async def spotify_login(self, event: AstrMessageEvent):
         """生成授权链接发给用户"""
+        # 🌟 关键：生成链接前重新加载配置，确保读取的是 WebUI 中最新保存的值
+        self._load_config_and_init()
+        
         if not self.auth_manager:
-            yield event.plain_result("请先在配置中填入 client_id 和 client_secret。")
+            yield event.plain_result("请先在 WebUI 面板中填入完整的 client_id 和 client_secret。")
             return
             
-        # 生成给用户的授权 URL
         auth_url = self.auth_manager.get_authorize_url()
         
         msg = (
@@ -75,6 +74,7 @@ class SpotifyController(Star):
             "5. 回复我：`/spotify授权 <你复制的链接>`"
         )
         yield event.plain_result(msg)
+
 
     @filter.command("spotify授权")
     async def spotify_auth_callback(self, event: AstrMessageEvent, url: str):
