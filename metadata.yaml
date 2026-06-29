@@ -1,0 +1,5 @@
+name: astrbot_plugin_spotify
+desc: Spotify 智能点歌与控制插件
+help: 首次使用请发送 /spotify登录 获取授权链接。支持自然语言点歌、切歌、暂停、收藏等功能。
+version: 1.0.0
+author: maolbsMd
