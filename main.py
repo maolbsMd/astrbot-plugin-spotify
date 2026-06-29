@@ -1,19 +1,25 @@
 import os
 import json
-import re # 引入正则库，用于清理错误的链接格式
+import re
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from astrbot.api.all import *
 from astrbot.api.event import filter
-from astrbot.api.star import StarTools # 引入核心工具
+from astrbot.api.star import StarTools
 
-# ... (保持原有的 class 声明和 __init__)
+class SpotifyController(Star):
+    def __init__(self, context: Context):
+        super().__init__(context)
+        self.sp = None
+        self.auth_manager = None
+        # 初始化时加载一次配置
+        self._load_config_and_init()
 
     def _load_config_and_init(self):
         """核心逻辑：从 WebUI 的正确数据目录实时加载配置"""
         config = {}
         
-        # 🌟 关键修复：使用 StarTools 指向 WebUI 真正保存配置的独立数据目录
+        # 使用 StarTools 指向 WebUI 真正保存配置的独立数据目录
         data_dir = StarTools.get_data_dir()
         config_path = os.path.join(data_dir, "config.json")
         
@@ -34,8 +40,7 @@ from astrbot.api.star import StarTools # 引入核心工具
         client_secret = config.get("client_secret", "")
         redirect_uri = config.get("redirect_uri", "http://127.0.0.1:6198/callback")
         
-        # 🛡️ 终极防呆：如果用户从聊天软件复制配置，不小心带入了 Markdown 括号
-        # 这里用正则强制提取纯净的 URL，坚决不把 Unsafe 链接传给 Spotify
+        # 终极防呆：强制提取纯净的 URL，坚决不把带 Markdown 括号的错误链接传给 Spotify
         if "[" in redirect_uri or "]" in redirect_uri:
             match = re.search(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', redirect_uri)
             if match:
